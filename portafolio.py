@@ -783,30 +783,63 @@ Thus, to implement the GBM model you need to define this questities, simulate a 
 
 def gbm0(n_years=10, n_scenarios=1000, mu=0.07, sigma=0.15, steps_per_year=12, s_0=100.0):
     """
-    Evolution of a Stock Price using GBM (Geometric Brownian Motion)
+    Simulación de la evolución del precio de un activo usando el Movimiento Browniano Geométrico (GBM).
+    Parámetros:
+        - n_years: Número de años a simular.
+        - n_scenarios: Número de escenarios simulados.
+        - mu: Retorno esperado promedio (anualizado).
+        - sigma: Volatilidad de los retornos (anualizada).
+        - steps_per_year: Número de pasos por año (e.g., 12 para mensual).
+        - s_0: Precio inicial del activo.
+    Retorna:
+        - DataFrame con los precios simulados para cada escenario.
     """
-    dt = None #step size
+    # Tamaño del paso
+    dt = 1 / steps_per_year
+
+    # Número total de pasos
     n_steps = int(n_years * steps_per_year)
-    xi = np.random.normal(size=(n_steps, n_scenarios))  # Generate random returns
-    rets = None  # Apply the GBM to calculate returns for each step
+
+    # Generar retornos aleatorios normales
+    xi = np.random.normal(size=(n_steps, n_scenarios))
+
+    # Calcular retornos usando la fórmula GBM
+    rets = mu * dt + sigma * np.sqrt(dt) * xi
+
+    # Convertir retornos a DataFrame
     rets = pd.DataFrame(rets)
-    prices = s_0 * (1 + rets).cumprod()  # Calculate prices by cumulative product
+
+    # Calcular precios mediante el producto acumulado
+    prices = s_0 * (1 + rets).cumprod(axis=0)
+
     return prices
 
 """Now, generate 3 scenarios for a stock price for 10 years."""
 
-# Generate sample data with gbm0
-p = gbm0(n_years=10, n_scenarios=3)
+# Generar 3 escenarios de precios para 10 años
+p = gbm0(n_years=10, n_scenarios=3, mu=0.07, sigma=0.15, steps_per_year=12, s_0=100.0)
+
+# Mostrar las primeras filas de los datos generados
 print(p.head())
 
-# Plot the results
-p.plot(figsize=(12, 6),legend=False)
+# Graficar los resultados
+p.plot(figsize=(12, 6), legend=False)
 plt.title("Geometric Brownian Motion (Basic Implementation)")
+plt.xlabel("Tiempo (Pasos)")
+plt.ylabel("Precio del Activo")
 plt.show()
 
 """##### **E9. Simulate 100 scenarios for 10 years.**"""
 
-None
+# Simular 100 escenarios de precios para 10 años utilizando GBM
+simulated_prices_100 = gbm0(n_years=10, n_scenarios=100, mu=0.07, sigma=0.15, steps_per_year=12, s_0=100.0)
+
+# Graficar los resultados
+simulated_prices_100.plot(figsize=(12, 6), legend=False, alpha=0.6)
+plt.title("Simulación de 100 Escenarios con GBM (10 Años)")
+plt.xlabel("Tiempo (Pasos)")
+plt.ylabel("Precio del Activo")
+plt.show()
 
 """The following section is optional and not neccesary for the essential results of the following section, however, you are encouraged to solve it.
 
@@ -839,14 +872,17 @@ This approach efficiently models the evolution of stock prices over time, captur
 The next function, gbm, is an optimized version of gbm0, which uses vectorization for faster computation. Instead of calculating returns and adding 1 to each element in a loop, it directly generates the adjusted return values.
 """
 
+# Implementar la función optimizada GBM
 def gbm(n_years=10, n_scenarios=1000, mu=0.07, sigma=0.15, steps_per_year=12, s_0=100.0):
     """
     Optimized Evolution of a Stock Price using GBM
     """
-    dt = None
-    n_steps = None
+    dt = 1 / steps_per_year  # Tamaño del paso
+    n_steps = int(n_years * steps_per_year)  # Número total de pasos
+    # Generar valores ajustados de retornos (1 + ri)
     rets_plus_1 = np.random.normal(loc=1 + mu * dt, scale=sigma * np.sqrt(dt), size=(n_steps, n_scenarios))
-    prices = s_0 * pd.DataFrame(rets_plus_1).cumprod()  # Optimized cumulative product calculation
+    # Calcular los precios como el producto acumulado
+    prices = s_0 * pd.DataFrame(rets_plus_1).cumprod()
     return prices
 
 # Apply the optimized GBM function
@@ -886,38 +922,47 @@ gbm(n_years=10,n_scenarios=1000).plot(legend=False)
 
 def show_cppi(n_scenarios=50, mu=0.07, sigma=0.15, m=3, floor=0.0, riskfree_rate=0.03, y_max=100):
     """
-    Plots the result of a Monte Carlo Simulation of CPPI, including a histogram of terminal wealth.
+    Realiza una simulación Monte Carlo de la estrategia CPPI e incluye un histograma de la riqueza terminal.
     """
-    start = None
-    sim_rets = gbm(None)
-    risky_r = pd.DataFrame(sim_rets.pct_change().dropna())
+    start = 100  # Valor inicial de la inversión
+    n_years = 10
+    steps_per_year = 12
 
-    # Run CPPI back-test
-    btr = run_cppi(risky_r=None, riskfree_rate=None, m=None, start=None, floor=floor)
+    # Simulación de precios usando GBM
+    sim_prices = gbm(n_years=n_years, n_scenarios=n_scenarios, mu=mu, sigma=sigma, s_0=start, steps_per_year=steps_per_year)
+    risky_r = sim_prices.pct_change().dropna()  # Convertir precios a retornos porcentuales
+
+    # Ejecutar CPPI
+    btr = run_cppi(risky_r, riskfree_rate=riskfree_rate, m=m, start=start, floor=floor)
     wealth = btr["Wealth"]
 
-    # Calculate terminal wealth stats
+    # Calcular estadísticas de la riqueza terminal
     y_max = wealth.values.max() * y_max / 100
-    terminal_wealth = wealth.iloc[-1]
+    terminal_wealth = wealth.iloc[-1]  # Última fila para la riqueza terminal
 
-    # Plot wealth evolution and terminal wealth histogram
+    # Configurar la figura para los gráficos
     fig, (wealth_ax, hist_ax) = plt.subplots(nrows=1, ncols=2, sharey=True, gridspec_kw={'width_ratios': [3, 2]}, figsize=(24, 9))
     plt.subplots_adjust(wspace=0.0)
 
-    # Plot wealth evolution
-    wealth.plot(ax=wealth_ax, legend=False, alpha=0.3, color="indianred") #dont change this line
-    wealth_ax.axhline(y=start, ls=":", color="black")
-    wealth_ax.axhline(y=start * floor, ls="--", color="red")
+    # Gráfica de la evolución de la riqueza
+    wealth.plot(ax=wealth_ax, legend=False, alpha=0.3, color="indianred")  # Gráfico de CPPI
+    wealth_ax.axhline(y=start, ls=":", color="black")  # Línea inicial de referencia
+    wealth_ax.axhline(y=start * floor, ls="--", color="red")  # Línea del piso
     wealth_ax.set_ylim(top=y_max)
+    wealth_ax.set_title("Evolución de la Riqueza con CPPI")
+    wealth_ax.set_xlabel("Tiempo")
+    wealth_ax.set_ylabel("Valor del Portafolio (USD)")
 
-    # Plot terminal wealth histogram
+    # Histograma de la riqueza terminal
     terminal_wealth.plot.hist(ax=hist_ax, bins=50, ec='w', fc='indianred', orientation='horizontal')
-    hist_ax.axhline(y=start, ls=":", color="black")
-    plt.title("Monte Carlo Simulation of CPPI Strategy with Terminal Wealth Distribution")
+    hist_ax.axhline(y=start, ls=":", color="black")  # Línea inicial de referencia
+    hist_ax.set_title("Distribución de la Riqueza Terminal")
+    hist_ax.set_xlabel("Frecuencia")
+
     plt.show()
 
-#Perform the simulation
-None
+# Ejecutar la simulación con los parámetros definidos
+show_cppi(n_scenarios=100, mu=0.07, sigma=0.15, m=3, floor=0.0, riskfree_rate=0.03, y_max=100)
 
 """##### **E11. Enhance show_cppi by including a histogram of terminal wealth at the end of the simulation. This histogram shows the distribution of outcomes across different scenarios. Also, include  additional statistics, such as mean, median, the probability of falling below the floor, and expected shortfall if the floor is violated.**"""
 
@@ -925,43 +970,61 @@ def show_cppi(n_scenarios=50, mu=0.07, sigma=0.15, m=3, floor=0.0, riskfree_rate
     """
     Plots the result of a Monte Carlo Simulation of CPPI, including terminal wealth stats.
     """
-    start = None
-    sim_rets = None
-    risky_r = None
+    # Parámetros iniciales
+    start = 100  # Valor inicial de la inversión
+    sim_rets = gbm(n_years=10, n_scenarios=n_scenarios, mu=mu, sigma=sigma, s_0=start)  # Simulaciones GBM
+    risky_r = pd.DataFrame(sim_rets.pct_change().dropna())  # Calcular rendimientos porcentuales
 
-    # Run CPPI back-test
-    btr = None
-    wealth = None
-    terminal_wealth = wealth.iloc[-1]
+    # Ejecutar CPPI
+    btr = run_cppi(risky_r=risky_r, m=m, start=start, floor=floor, riskfree_rate=riskfree_rate)
+    wealth = btr["Wealth"]
+    terminal_wealth = wealth.iloc[-1]  # Últimos valores de la riqueza
 
-    # Calculate terminal wealth stats
-    y_max = None
-    tw_mean = terminal_wealth.mean() #compute mean
-    tw_median = None #compute median
-    failure_mask = terminal_wealth < start * floor #this shows when the floor was violated
-    n_failures = None.sum() #sum the number of violations
-    p_fail = None #the probability of violating the floor, which is the number of violation over the number of total scenarios
-    e_shortfall = (terminal_wealth - start * floor)[failure_mask].mean() if n_failures > 0 else 0.0 #expected shortfall
+    # Calcular estadísticas de riqueza terminal
+    y_max = wealth.values.max() * y_max / 100  # Límite superior de la gráfica
+    tw_mean = terminal_wealth.mean()  # Promedio de riqueza terminal
+    tw_median = terminal_wealth.median()  # Mediana de riqueza terminal
+    failure_mask = terminal_wealth < start * floor  # Máscara para identificar violaciones al piso
+    n_failures = failure_mask.sum()  # Número de violaciones
+    p_fail = n_failures / n_scenarios  # Probabilidad de violar el piso
+    e_shortfall = (terminal_wealth - start * floor)[failure_mask].mean() if n_failures > 0 else 0.0  # Pérdida esperada
 
-    # Plot wealth evolution and terminal wealth histogram
-    None
+    # Configurar gráficos
+    fig, (wealth_ax, hist_ax) = plt.subplots(
+        nrows=1, ncols=2, sharey=True, gridspec_kw={'width_ratios': [3, 2]}, figsize=(24, 9)
+    )
+    plt.subplots_adjust(wspace=0.0)
 
-    # Plot wealth evolution
-    None
+    # Gráfica de evolución de riqueza
+    wealth.plot(ax=wealth_ax, legend=False, alpha=0.3, color="indianred")
+    wealth_ax.axhline(y=start, ls=":", color="black", label="Initial Investment")
+    wealth_ax.axhline(y=start * floor, ls="--", color="red", label="Floor")
+    wealth_ax.set_ylim(top=y_max)
+    wealth_ax.set_title("Evolución de la Riqueza en CPPI", fontsize=20)
+    wealth_ax.set_ylabel("Valor de Riqueza")
+    wealth_ax.set_xlabel("Tiempo")
+    wealth_ax.legend()
 
-    # Plot terminal wealth histogram
-    None
+    # Histograma de riqueza terminal
+    terminal_wealth.plot.hist(ax=hist_ax, bins=50, ec='w', fc='indianred', orientation='horizontal')
+    hist_ax.axhline(y=start, ls=":", color="black")
+    hist_ax.set_title("Distribución de Riqueza Terminal", fontsize=20)
+    hist_ax.set_xlabel("Frecuencia")
 
-    # Annotate statistics
-    hist_ax.annotate(f"Mean: ${int(tw_mean)}", xy=(0.7, 0.9), xycoords='axes fraction', fontsize=24)
-    hist_ax.annotate(f"Median: ${int(tw_median)}", xy=(0.7, 0.85), xycoords='axes fraction', fontsize=24)
+    # Anotar estadísticas
+    hist_ax.annotate(f"Mean: ${int(tw_mean)}", xy=(0.7, 0.9), xycoords='axes fraction', fontsize=18)
+    hist_ax.annotate(f"Median: ${int(tw_median)}", xy=(0.7, 0.85), xycoords='axes fraction', fontsize=18)
     if floor > 0.01:
         hist_ax.axhline(y=start * floor, ls="--", color="red", linewidth=3)
-        hist_ax.annotate(f"Violations: {n_failures} ({p_fail*100:.2f}%)\nE(shortfall)=${e_shortfall:.2f}", xy=(0.7, 0.7), xycoords="axes fraction", fontsize=24)
+        hist_ax.annotate(
+            f"Violations: {n_failures} ({p_fail * 100:.2f}%)\nE(shortfall)=${e_shortfall:.2f}",
+            xy=(0.7, 0.7), xycoords="axes fraction", fontsize=18
+        )
 
     plt.show()
 
-#Apply the simulation
+# Ejecutar simulación mejorada de CPPI
+show_cppi(n_scenarios=100, mu=0.07, sigma=0.15, m=3, floor=0.1, riskfree_rate=0.03, y_max=150)
 
 """##### **R2. You are going to simulate returns and apply CPPI. First, explain how GBM is used and computed, and how it can be used into CPPI. Then, perform 5 different simulations of returns using GBM with different configurations for 1000 scenarios for periods of 40 years. Apply CPPI to the simulated returns. Plot a histogram of the terminal wealth at the end of the simulation. Also, include additional statistics, such as mean, median, the probability of falling below the floor (which is computed from the times the floor was violated during the simulations), and the expected shortfall if the floor is violated. Analyze the results and give some key conclusions about GBM usage for Portfolio Management and CPPI.**
 
@@ -1040,7 +1103,33 @@ def discount(t, r):
     Compute the price of a pure discount bond that pays $1 at time t,
     given an interest rate r.
     """
-    None
+    return 1 / ((1 + r) ** t)
+
+def pv_liabilities(liabilities, times, r):
+    """
+    Compute the present value of a set of liabilities.
+    liabilities: List of liabilities (amounts due at each time)
+    times: List of times (in years) at which liabilities are due
+    r: Annual interest rate
+    """
+    # Ensure liabilities and times are the same length
+    if len(liabilities) != len(times):
+        raise ValueError("Liabilities and times must have the same length.")
+
+    # Calculate PV(L) as the sum of discounted liabilities
+    pv = sum(discount(t, r) * L for t, L in zip(times, liabilities))
+    return pv
+
+def funding_ratio(assets, liabilities, times, r):
+    """
+    Compute the funding ratio, given assets and liabilities.
+    assets: Current amount of money available
+    liabilities: List of liabilities
+    times: List of times (in years) at which liabilities are due
+    r: Annual interest rate
+    """
+    pv_l = pv_liabilities(liabilities, times, r)
+    return assets / pv_l
 
 """To check the discount factor for a payment due in 10 years at a 3% interest rate"""
 
@@ -1052,18 +1141,34 @@ def pv(liabilities, r):
     `liabilities` is indexed by the time, and values are the amounts.
     Returns the present value of the set.
     """
-    None
+    # Calcular el valor presente de cada pasivo
+    pv_values = liabilities.index.map(lambda t: liabilities.loc[t] / (1 + r) ** t)
+
+    # Convertir los resultados a un array y sumar
+    return sum(pv_values)
 
 """Define a set of liabilities and calculate their present value with a 3% discount rate."""
 
+# Definir los pasivos
 liabilities = pd.Series(data=[1, 1.5, 2, 2.5], index=[3, 3.5, 4, 4.5])
-pv(liabilities, 0.03)  # Returns 6.233320315080045
+
+# Calcular el valor presente
+present_value = pv(liabilities, 0.03)
+print(present_value)  # Debería devolver 6.233320315080045
 
 def funding_ratio(assets, liabilities, r):
     """
     Computes the funding ratio given assets, liabilities, and interest rate.
+    `assets`: The current value of the assets.
+    `liabilities`: A pandas Series, where the index represents the time of payment and the values are the amounts.
+    `r`: The discount rate (annual interest rate).
+    Returns the funding ratio as a float.
     """
-    None
+    # Calcular el valor presente de los pasivos
+    pv_liabilities = pv(liabilities, r)
+
+    # Calcular el ratio de financiación
+    return assets / pv_liabilities
 
 """To calculate the funding ratio with $5 in assets and a 3% interest rate"""
 
@@ -1135,13 +1240,45 @@ def force_to_ann(r):
     """
     Converts force of interest to an annualized rate.
     """
-    None
+    return np.exp(r) - 1
 
 def ann_to_force(r):
     """
     Converts an annualized rate to the force of interest.
     """
-    None
+    return np.log(1 + r)
+
+def cir(n_years=10, n_scenarios=1000, a=0.05, b=0.03, sigma=0.02, steps_per_year=12, r_0=0.03):
+    """
+    Simulates interest rate movements using the CIR model.
+    """
+    dt = 1 / steps_per_year
+    n_steps = int(n_years * steps_per_year)
+    rates = np.zeros((n_steps, n_scenarios))
+    rates[0] = r_0
+
+    for step in range(1, n_steps):
+        rt = rates[step - 1]
+        dW = np.random.normal(0, np.sqrt(dt), size=n_scenarios)  # Wiener process
+        dr = a * (b - rt) * dt + sigma * np.sqrt(np.maximum(rt, 0)) * dW
+        rates[step] = rt + dr
+
+    return pd.DataFrame(rates)
+
+# Ejemplo de uso
+n_years = 10
+n_scenarios = 1000
+a = 0.1  # Velocidad de reversión a la media
+b = 0.03  # Nivel promedio a largo plazo
+sigma = 0.02  # Volatilidad
+r_0 = 0.03  # Tasa inicial
+
+# Simulación de tasas de interés con el modelo CIR
+simulated_rates = cir(n_years=n_years, n_scenarios=n_scenarios, a=a, b=b, sigma=sigma, r_0=r_0)
+simulated_rates.plot(figsize=(12, 6), legend=False, alpha=0.3, title="CIR Interest Rate Simulation")
+plt.xlabel("Time Steps")
+plt.ylabel("Interest Rate")
+plt.show()
 
 """The cir function implements the Cox-Ingersoll-Ross (CIR) model, which simulates the evolution of interest rates over time."""
 
@@ -1149,20 +1286,26 @@ def cir(n_years=10, n_scenarios=1, a=0.05, b=0.03, sigma=0.05, steps_per_year=12
     """
     Implements the CIR model for simulating interest rate evolution over time.
     """
-    if r_0 is None: #dont change this line
+    if r_0 is None:  # Si no se especifica r_0, usa b como tasa inicial
         r_0 = b
-    r_0 = None #transform r_0 to force of interest
-    dt = None #step size
-    num_steps = int(n_years * steps_per_year) + 1
-    shock = None(0, scale=np.sqrt(dt), size=(num_steps, n_scenarios)) #simulate normal variables with
-    rates = np.empty_like(shock)
-    rates[0] = r_0 #first rate
+
+    # Convertir r_0 a fuerza de interés
+    r_0 = ann_to_force(r_0)
+    dt = 1 / steps_per_year  # Tamaño del paso (intervalo de tiempo)
+    num_steps = int(n_years * steps_per_year) + 1  # Número total de pasos
+
+    # Simular choques normales estándar (ruido aleatorio)
+    shock = np.random.normal(0, scale=np.sqrt(dt), size=(num_steps, n_scenarios))
+    rates = np.empty_like(shock)  # Matriz para almacenar las tasas simuladas
+    rates[0] = r_0  # Establecer la tasa inicial
 
     for step in range(1, num_steps):
-        r_t = rates[step - 1]
-        d_r_t = None #simulate the rates movements using CIR
-        rates[step] = abs(r_t + d_r_t)
+        r_t = rates[step - 1]  # Tasa en el paso anterior
+        # Simular los movimientos de las tasas usando la ecuación del modelo CIR
+        d_r_t = a * (b - r_t) * dt + sigma * np.sqrt(np.maximum(r_t, 0)) * shock[step]
+        rates[step] = np.abs(r_t + d_r_t)  # Asegurar que las tasas sean no negativas
 
+    # Convertir las tasas de fuerza de interés a tasas anualizadas
     return pd.DataFrame(data=force_to_ann(rates), index=range(num_steps))
 
 #Apply the CIR model
@@ -1208,44 +1351,62 @@ where \( $\tau = T - t $\) represents the time to maturity.
 """
 
 import math
+import numpy as np
+import pandas as pd
+
+def force_to_ann(r):
+    """
+    Converts force of interest to an annualized rate.
+    """
+    return np.exp(r) - 1
+
+def ann_to_force(r):
+    """
+    Converts an annualized rate to the force of interest.
+    """
+    return np.log(1 + r)
+
 def cir(n_years=10, n_scenarios=1, a=0.05, b=0.03, sigma=0.05, steps_per_year=12, r_0=None):
-    if r_0 is None: #dont change this line
+    """
+    Implements the CIR model and Zero-Coupon Bond Pricing.
+    """
+    if r_0 is None:  # Default to long-term mean rate if not provided
         r_0 = b
-    r_0 = None #force of interest
-    dt = None
+    r_0 = ann_to_force(r_0)  # Convert to force of interest
+    dt = 1 / steps_per_year
     num_steps = int(n_years * steps_per_year) + 1
-    shock = None #normal variables
+    shock = np.random.normal(loc=0, scale=np.sqrt(dt), size=(num_steps, n_scenarios))
     rates = np.empty_like(shock)
     rates[0] = r_0
 
-    h = math.sqrt(a ** 2 + 2 * sigma ** 2)
+    h = math.sqrt(a ** 2 + 2 * sigma ** 2)  # Calculate h for the CIR model
     prices = np.empty_like(shock)
 
-    def price(ttm, r): #time to maturity and interest rate
-        #_A is a factor that adjusts for the time to maturity (ttm) and parameters
-        #of the model (h, a, b, sigma). It often represents a discounting term that
-        #reflects the bond’s sensitivity to changes in the long-term mean (b) and mean reversion speed (a).
-        _A = ((2 * h * math.exp((h + a) * ttm / 2)) / (2 * h + (h + a) * (math.exp(h * ttm) - 1))) ** (2 * a * b / sigma ** 2)
+    def price(ttm, r):
+        """
+        Computes the price of a Zero-Coupon Bond using the CIR model.
+        """
+        # Compute A(t, T)
+        _A = ((2 * h * np.exp((h + a) * ttm / 2)) /
+              (2 * h + (h + a) * (np.exp(h * ttm) - 1))) ** (2 * a * b / sigma ** 2)
 
-        #_B is a duration-like factor that affects how the initial rate (r) impacts the bond price. It often represents
-        #the influence of the initial interest rate over time, adjusting for the model’s assumptions about mean reversion.
-        _B = (2 * (math.exp(h * ttm) - 1)) / (2 * h + (h + a) * (math.exp(h * ttm) - 1))
+        # Compute B(t, T)
+        _B = (2 * (np.exp(h * ttm) - 1)) / (2 * h + (h + a) * (np.exp(h * ttm) - 1))
 
-       #The bond price is calculated as _A * exp(-_B * r), where _A discounts the bond based on the time to maturity,
-       #and _B applies an exponential discount based on the initial rate (r)
-       #Return the bond price
-       return None
+        # Return the bond price
+        return _A * np.exp(-_B * r)
 
-    prices[0] = None #apply the prices function to obtain prices using n_years and r_0
+    # Initialize the first step prices
+    prices[0] = price(n_years, rates[0])
 
     for step in range(1, num_steps):
         r_t = rates[step - 1]
-        d_r_t = None #CIR MODEL
-        rates[step] = abs(r_t + d_r_t)
-        prices[step] = price(n_years - step * dt, rates[step]) #compute prices
+        d_r_t = a * (b - r_t) * dt + sigma * np.sqrt(r_t) * shock[step]  # CIR model
+        rates[step] = abs(r_t + d_r_t)  # Ensure non-negative rates
+        prices[step] = price(n_years - step * dt, rates[step])  # Compute ZCB prices
 
-    rates = pd.DataFrame(data=force_to_ann(rates), index=range(num_steps))
-    prices = pd.DataFrame(data=prices, index=range(num_steps))
+    rates = pd.DataFrame(data=force_to_ann(rates), index=range(num_steps))  # Convert rates back to annualized
+    prices = pd.DataFrame(data=prices, index=range(num_steps))  # Bond prices
     return rates, prices
 
 #Apply the cir model
@@ -1260,23 +1421,43 @@ In class, we also talked about the risk perspective of using cash vs bonds to fu
 The following compares zc bonds to cash. Assume that liabilities are the bond prices,i.e. we are using bond prices to model liabilities as they are almost the same from a computation and mathematical finance perspective.
 """
 
-#we simulate for 10 years
-a_0= 0.75 #cash on hand// 0.75 of a million
-rates, bond_prices=None(r_0=0.03,b=0.03,n_scenarios=10) #use CIR models
+# Simular para 10 años
+a_0 = 0.75  # efectivo disponible, 0.75 de un millón
+n_years = 10
+r_0 = 0.03  # tasa inicial
+b = 0.03    # tasa a largo plazo
+a = 0.05    # velocidad de reversión
+sigma = 0.05  # volatilidad
 
+# Generar tasas de interés y precios de bonos cero cupón
+rates, bond_prices = cir(r_0=r_0, b=b, n_years=n_years, n_scenarios=10, a=a, sigma=sigma)
 
-#assume that liabilities are the bond prices// we are using bond prices to model liabilities as they are almost the same
-liabilities=bond_prices #as interest change, the cost of liabilities cost change
-zcbond_10=pd.Series(data=[1],index=[10])
-zc_0=None None #present values of zero cupon bonds with interest rate of 0.03 - Note: the value of a zc today is the pv of a dollar
+# Suponer que los pasivos son los precios de los bonos
+liabilities = bond_prices  # El costo de los pasivos cambia con las tasas de interés
 
-#how many bonds could we buy?
-n_bonds=a_0/zc_0
+# Calcular el valor presente de un bono cero cupón (zc bond)
+zc_bond = pd.Series(data=[1], index=[n_years])  # Bono que paga $1 en 10 años
+zc_0 = pv(zc_bond, r_0)  # Valor presente con tasa inicial de 0.03
 
-#asset value assuming we buy bonds
-av_zc_bonds=None #this is just how many bonds you have times the bond prices
-#asset value investing in cash
-av_cash=a_0*(rates/12+1).cumprod()
+# ¿Cuántos bonos podemos comprar con el efectivo disponible?
+n_bonds = a_0 / zc_0  # Cantidad de bonos que se pueden adquirir
+
+# Valor del activo suponiendo que se compran bonos
+av_zc_bonds = n_bonds * bond_prices  # Valor de los bonos adquiridos según los precios simulados
+
+# Valor del activo invirtiendo en efectivo
+av_cash = a_0 * (rates / 12 + 1).cumprod()  # Valor acumulado si se invierte en efectivo
+
+# Graficar resultados
+plt.figure(figsize=(12, 6))
+plt.plot(av_zc_bonds, label="Valor Activo - Bonos", linestyle="--", alpha=0.7)
+plt.plot(av_cash, label="Valor Activo - Efectivo", alpha=0.7)
+plt.plot(liabilities.mean(axis=1), label="Costo de los Pasivos (Media)", linestyle=":")
+plt.title("Comparación: Bonos Cero Cupón vs Efectivo")
+plt.xlabel("Tiempo (Pasos)")
+plt.ylabel("Valor Activo / Costo de Pasivos")
+plt.legend()
+plt.show()
 
 av_cash.plot(legend=False)
 
@@ -1300,15 +1481,41 @@ Let's look at the final funding ratio.
 ##### **E15. Compute the final funding ratio using the CIR model**
 """
 
-a_0= 0.75
-#do 10000 scenarios with 0.03 initial r and b=0.03
-rates, bond_prices=None
-liabilities=bond_prices
-zcbond_10=pd.Series(data=[1],index=[10])
-zc_0=None #present value at 0.03 rate
-n_bonds=a_0/zc_0
-av_zc_bonds=None #asset value assuming we buy bonds
-av_cash=a_0*(rates/12+1).cumprod() #acumulated returns
+# Configuración inicial
+a_0 = 0.75  # Efectivo disponible (0.75 millones)
+n_years = 10
+r_0 = 0.03  # Tasa inicial
+b = 0.03    # Tasa a largo plazo
+a = 0.05    # Velocidad de reversión
+sigma = 0.05  # Volatilidad
+n_scenarios = 10000  # Número de escenarios
+
+# Simular tasas de interés y precios de bonos cero cupón utilizando el modelo CIR
+rates, bond_prices = cir(r_0=r_0, b=b, n_years=n_years, n_scenarios=n_scenarios, a=a, sigma=sigma)
+
+# Suponer que los pasivos son los precios de los bonos
+liabilities = bond_prices  # Los costos de los pasivos varían con las tasas de interés
+
+# Calcular el valor presente de un bono cero cupón (zc bond) con una tasa inicial de 0.03
+zcbond_10 = pd.Series(data=[1], index=[10])  # Bono que paga $1 en 10 años
+zc_0 = pv(zcbond_10, r_0)  # Valor presente del bono con tasa inicial
+
+# ¿Cuántos bonos podemos comprar con el efectivo disponible?
+n_bonds = a_0 / zc_0  # Cantidad de bonos que se pueden adquirir
+
+# Valor del activo suponiendo que se compran bonos
+av_zc_bonds = n_bonds * bond_prices  # Valor de los bonos adquiridos según los precios simulados
+
+# Valor del activo invirtiendo en efectivo
+av_cash = a_0 * (rates / 12 + 1).cumprod()  # Valor acumulado si se invierte en efectivo
+
+# Mostrar resultados iniciales
+print("Tasas simuladas:\n", rates.head())
+print("Precios de bonos:\n", bond_prices.head())
+print("Valor presente de un bono cero cupón:", zc_0)
+print("Cantidad de bonos adquiridos:", n_bonds)
+print("Valor del activo con bonos:\n", av_zc_bonds.head())
+print("Valor del activo con efectivo:\n", av_cash.head())
 
 #at the last point in time
 tfr_cash=av_cash.iloc[-1]/liabilities.iloc[-1]
@@ -1318,19 +1525,39 @@ tfr_zc_bonds.plot.hist(ax=ax,label="ZC Bonds", bins=100, legend=True, secondary_
 
 """The unique "convinent" assumption is that we have 0.75 million and 10 years to get the million. Repeat this time stating with 0.5"""
 
-a_0= None
-rates, bond_prices=None
-liabilities=None
-zcbond_10=pd.Series(data=[1],index=[3])
-zc_0=None
-n_bonds=None
-av_zc_bonds=None
-av_cash=None
+# Monto inicial ajustado a 0.5 millones
+a_0 = 0.5
 
-tfr_cash=av_cash.iloc[-1]/liabilities.iloc[-1]
-tfr_zc_bonds=av_zc_bonds.iloc[-1]/liabilities.iloc[-1]
-ax=tfr_cash.plot.hist(label="Cash", figsize=(15,6), bins=100, legend=True)
-tfr_zc_bonds.plot.hist(ax=ax,label="ZC Bonds", bins=100, legend=True, secondary_y=True)
+# Simulación de tasas de interés y precios de bonos usando el modelo CIR
+rates, bond_prices = cir(r_0=0.03, b=0.03, sigma=0.05, n_years=10, n_scenarios=10000)
+
+# Liabilities modeladas como precios de los bonos
+liabilities = bond_prices
+
+# Definir un bono cero cupón que madura en 10 años
+zcbond_10 = pd.Series(data=[1], index=[10])  # $1 que madura en 10 años
+
+# Valor presente del bono cero cupón con tasa de 0.03
+zc_0 = pv(zcbond_10, 0.03)  # Calcula el PV del bono
+
+# Número de bonos que podemos comprar con los activos iniciales
+n_bonds = a_0 / zc_0
+
+# Valor de los activos suponiendo que compramos bonos cero cupón
+av_zc_bonds = n_bonds * bond_prices
+
+# Valor de los activos si se invierte en efectivo
+av_cash = a_0 * (rates / 12 + 1).cumprod()
+
+# Calcular los ratios de financiamiento al final del periodo
+tfr_cash = av_cash.iloc[-1] / liabilities.iloc[-1]  # Funding ratio con efectivo
+tfr_zc_bonds = av_zc_bonds.iloc[-1] / liabilities.iloc[-1]  # Funding ratio con bonos
+
+# Graficar las distribuciones del funding ratio
+ax = tfr_cash.plot.hist(label="Cash", figsize=(15, 6), bins=100, legend=True)
+tfr_zc_bonds.plot.hist(ax=ax, label="ZC Bonds", bins=100, legend=True, secondary_y=True)
+plt.title("Distribución del Funding Ratio con Activos Iniciales de 0.5 Millones")
+plt.show()
 
 """##### **R4. Assume that your liability is in Cash. Use the previous 5 scenarios you defined in R3 for the CIR modelling, and compute the funding ratio. Provide an analysis on how to use CIR to model liabilities and the funding ratio.**
 
@@ -1357,12 +1584,21 @@ Thus, for implementing GHP and duration matching first we'll use regular
 def bond_cash_flows(maturity, principal=100, coupon_rate=0.03, coupons_per_year=12):
     """
     Returns a series of cash flows generated by a bond, indexed by coupon number.
+
+    Parameters:
+    - maturity: Time to maturity in years.
+    - principal: Face value of the bond (default is 100).
+    - coupon_rate: Annual coupon rate (default is 0.03 or 3%).
+    - coupons_per_year: Number of coupons per year (default is 12, for monthly).
+
+    Returns:
+    - A pandas Series of cash flows indexed by coupon number.
     """
-    n_coupons = round(None) #this is the coupons per year for the time to maturity
-    coupon_amt = None  # Calculate the amount of each coupon
-    coupon_times = np.arange(1, n_coupons + 1)
-    cash_flows = pd.Series(data=coupon_amt, index=coupon_times)
-    cash_flows.iloc[-1] += None  # Add principal to the final payment
+    n_coupons = round(maturity * coupons_per_year)  # Total number of coupons
+    coupon_amt = (coupon_rate / coupons_per_year) * principal  # Amount of each coupon payment
+    coupon_times = np.arange(1, n_coupons + 1)  # Coupon indices (1 to n_coupons)
+    cash_flows = pd.Series(data=coupon_amt, index=coupon_times)  # Regular coupon payments
+    cash_flows.iloc[-1] += principal  # Add principal repayment to the final payment
     return cash_flows
 
 """To get cash flows for a 3-year bond with a 3% coupon rate paid semiannually"""
@@ -1374,11 +1610,27 @@ bond_cash_flows(3, 100, 0.03, 2)
 def bond_price(maturity, principal=100, coupon_rate=0.03, coupons_per_year=12, discount_rate=0.03):
     """
     Price a bond based on bond parameters and discount rate.
+
+    Parameters:
+    - maturity: Time to maturity in years.
+    - principal: Face value of the bond (default is 100).
+    - coupon_rate: Annual coupon rate (default is 0.03 or 3%).
+    - coupons_per_year: Number of coupons per year (default is 12, for monthly payments).
+    - discount_rate: Annual discount rate (default is 0.03 or 3%).
+
+    Returns:
+    - The present value (price) of the bond.
     """
-    cash_flows = None #obtain bonds cashflows
-    #the pv of the cashflows, using a rate that is the monthly discount rate
-    #which is the discount rate over the number of coupons per year
-    return None #use pv function properly
+    # Obtener los flujos de caja del bono
+    cash_flows = bond_cash_flows(maturity, principal, coupon_rate, coupons_per_year)
+
+    # Tasa de descuento mensual (dividir tasa anual entre el número de pagos por año)
+    monthly_discount_rate = discount_rate / coupons_per_year
+
+    # Calcular el valor presente de los flujos de caja
+    bond_price = pv(cash_flows, monthly_discount_rate)
+
+    return bond_price
 
 """Calculate the price of a 20-year bond with a 5% coupon rate and a 4% discount rate"""
 
@@ -1406,13 +1658,14 @@ discounts
 
 """ These are the discount factors. Now, we discounted values:"""
 
-dcf=None #the discounts time the cashflows
+dcf = cf * discounts
 dcf
 
 """ This is the discounted values of the present values for the cashflows. Now, we can get the weights."""
 
-weights=None #this is just the weights over the sum of weights
-weights
+weights = dcf / dcf.sum()
+weights_series = weights.reset_index(drop=True)
+print(weights_series)
 
 """ Finally, we make a weighted average."""
 
@@ -1439,12 +1692,11 @@ print("Promedio ponderado:", weighted_average)
 """
 
 def macaulay_duration(flows, discount_rate):
-  """
-   Computes the Macaulay Duration of a sequence of cashflows
-   """
-  discounted_flows=None
-  weights=None
-  return np.average(flows.index,weights=weights)
+    discounted_flows = flows * discount(flows.index, discount_rate)
+    weights = discounted_flows / discounted_flows.sum()
+    return np.average(flows.index, weights=weights)
+
+macaulay_duration(flows=cf, discount_rate=0.06 / 2)
 
 macaulay_duration(bond_cash_flows(3,1000,0.06,2), 0.06/2)
 
@@ -1482,41 +1734,76 @@ By computing the appropriate weights, you’ll create a portfolio that mirrors t
 """
 
 def match_duration(cf_t, cf_s, cf_l, discount_rate):
-    """
-    Returns the weight W in cf_s to match duration for target cash flows cf_t.
-    """
-    d_t = None  # target
-    d_s = None  # short bond
-    d_l = macaulay_duration(cf_l, discount_rate)  # long bond
-    return None #weights computation
+    d_t = macaulay_duration(cf_t, discount_rate)  # Duración objetivo
+    d_s = macaulay_duration(cf_s, discount_rate)  # Bono corto
+    d_l = macaulay_duration(cf_l, discount_rate)  # Bono largo
+    w_s = (d_l - d_t) / (d_l - d_s)  # Peso necesario
+    return w_s
 
-#assume the short bond is for a period of 10, and the long is for 20
-short_bond = None
-long_bond = None(20, 1000, 0.05, 1)
-w_s = None #weights to match durations for the short bond
-w_l = 1 - w_s #weight for the long is just the remaining weight
-print(w_s)
-print(w_l)
+# Definir los flujos de caja objetivo (liabilities) para obtener el resultado esperado
+cf_target = bond_cash_flows(maturity=15, principal=1000, coupon_rate=0.05, coupons_per_year=1)
+
+# Supongamos que el bono de corta duración es de 10 años y el de larga duración es de 20 años
+short_bond = bond_cash_flows(maturity=10, principal=1000, coupon_rate=0.05, coupons_per_year=1)
+long_bond = bond_cash_flows(maturity=20, principal=1000, coupon_rate=0.05, coupons_per_year=1)
+
+# Calcular los pesos para igualar las duraciones
+w_s = match_duration(cf_target, short_bond, long_bond, discount_rate=0.03)  # Peso para el bono corto
+w_l = 1 - w_s  # Peso para el bono largo
+
+# Imprimir los resultados
+print("Peso para el bono corto:", w_s)
+print("Peso para el bono largo:", w_l)
 
 """Given the calculated weights, construct the portfolio by allocating funds proportionally to each bond."""
 
-price_short = bond_price(10, 1000, 0.05, 1, 0.04)
-price_long = bond_price(20, 1000, 0.05, 1, 0.04)
-a_0 = None  # Initial assets value, assume 130000
+# Calcular el precio de los bonos corto y largo
+price_short = bond_price(10, 1000, 0.05, 1, 0.04)  # Precio del bono de 10 años
+price_long = bond_price(20, 1000, 0.05, 1, 0.04)  # Precio del bono de 20 años
 
-portfolio_flows = pd.concat([a_0 * w_s * short_bond / price_short, a_0 * w_l * long_bond / price_long])
+# Valor inicial de los activos, asumimos 130,000
+a_0 = 130000
+
+# Calcular los flujos de efectivo del portafolio basados en los pesos y precios
+portfolio_flows = pd.concat([
+    a_0 * w_s * short_bond / price_short,  # Asignación proporcional al bono corto
+    a_0 * w_l * long_bond / price_long    # Asignación proporcional al bono largo
+])
+
+# Mostrar los flujos de efectivo del portafolio
+print(portfolio_flows)
 
 macaulay_duration(portfolio_flows,0.04)
 
 """ Now, let's compute the funding ratio"""
 
-def funding_ratio (assets,liabilities,r_a,r_l):
-  """
-    Computes the funding ratio of some given liabiities and interest rate.
+def funding_ratio(assets, liabilities, r_a, r_l):
     """
-  return pv(assets,r_a)/pv(liabilities,r_l)
+    Computes the funding ratio of given assets and liabilities with respective discount rates.
+    """
+    # Alinear índices de activos y obligaciones
+    aligned_assets = assets.reindex(liabilities.index, fill_value=0)
 
-funding_ratio(portfolio_flows,liabilities,0.04,0.04)
+    # Calcular los valores presentes
+    pv_assets = pv(aligned_assets, r_a)  # Valor presente de los activos
+    pv_liabilities = pv(liabilities, r_l)  # Valor presente de las obligaciones
+
+    # Evitar divisiones por cero
+    if pv_liabilities == 0:
+        return float('inf')
+
+    # Retornar el Funding Ratio
+    return pv_assets / pv_liabilities
+
+# Combinar flujos con índices duplicados sumando los valores
+portfolio_flows = portfolio_flows.groupby(portfolio_flows.index).sum()
+
+# Alinear índices de los flujos del portafolio con los de las obligaciones
+portfolio_flows_aligned = portfolio_flows.reindex(liabilities.index, fill_value=0)
+
+# Calcular el Funding Ratio
+fr = funding_ratio(portfolio_flows_aligned, liabilities, 0.04, 0.04)
+print(f"Funding Ratio: {fr}")
 
 """So, we're pretty funded. The question now is what happens to the funding ratio when there are changes on interest rates and a bunch of cashflows.
 
@@ -1529,32 +1816,51 @@ We have seen how to work with bonds, and again, bonds depend on the interest rat
 First, let's improve our discount and pv function by doing vectorization.
 """
 
-def discount (t,r):
-  """
-    Compute the price of a pure discounte bond that pays a dollar at time t, g
-  iven an interest rate r. Returns a |t|x|r| series or data frame r can be a flo
-  at, series or data frame
-    returns a dataframe indexed by t
+def discount(t, r):
     """
-  discounts=pd.DataFrame([(r+1)**-i for i in t])
-  discounts.index=t
-  return (discounts)
+    Compute the price of a pure discount bond that pays $1 at time t,
+    given an interest rate r.
+    Returns a DataFrame with discount factors for each time and rate.
 
-def pv(flows,r):
-  """
-    Computes PV of a set of liabilities
-    flows is indexed by the time and amounts
-    r can be a scalar, a series, or a dataframe with the number of rows matchi
-  ng the num of rows in flows
+    Parameters:
+    - t: List or Series of times (in years).
+    - r: Float, Series, or DataFrame of rates.
+
+    Returns:
+    - A DataFrame indexed by time, where each column corresponds to a rate.
     """
-  dates= flows.index
-  discounts= discount(dates,r)
-  return discounts.multiply(flows, axis='rows').sum()
+    if np.isscalar(r):
+        r = pd.Series([r], name="Rate")
+    discounts = pd.DataFrame([(1 + r) ** -i for i in t])
+    discounts.index = t
+    return discounts
+
+def pv(flows, r):
+    """
+    Computes the Present Value (PV) of a set of cashflows.
+
+    Parameters:
+    - flows: A Series indexed by time, with cashflows as values.
+    - r: Float, Series, or DataFrame of rates.
+
+    Returns:
+    - A scalar, Series, or DataFrame of PVs depending on the input rate.
+    """
+    dates = flows.index
+    discounts = discount(dates, r)
+    return discounts.multiply(flows, axis="rows").sum()
 
 bond_price(5,100,0.05,12,0.03)
 
-#simulate rates and zc prices using CIR
-rates, zc_prices=None(10,500,b=0.03,r_0=0.03)
+# Simular tasas de interés y precios de bonos ZC utilizando el modelo CIR
+rates, zc_prices = cir(10, 500, b=0.03, r_0=0.03)
+
+# Mostrar las primeras filas de las simulaciones
+print("Simulaciones de tasas de interés:")
+print(rates.head())
+
+print("\nSimulaciones de precios de bonos ZC:")
+print(zc_prices.head())
 
 #bond prices
 bond_price(5,100,0.05,12,rates.iloc[0][[1,2,3]])
@@ -1601,8 +1907,13 @@ def annualize_rets(r, periods_per_year):
     Returns:
     - Annualized return
     """
-    compounded_growth = None #cummulative returns
-    n_periods = None #lenght of compounded_growth
+    # Calcular el crecimiento compuesto total (1 + r acumulado)
+    compounded_growth = (1 + r).prod()
+
+    # Número de periodos (longitud de la serie de retornos)
+    n_periods = r.shape[0]
+
+    # Calcular el retorno anualizado
     return compounded_growth ** (periods_per_year / n_periods) - 1
 
 prices=bond_price(10,100,0.05,12,rates[[1,2,3,4,5]])
@@ -1639,7 +1950,7 @@ def bond_total_return(monthly_prices, principal, coupon_rate, coupons_per_year):
     coupons.iloc[pay_dates] = principal * coupon_rate / coupons_per_year
 
     # Calculate total returns by adding the coupon payments to the bond price (monthly)
-    total_returns = (None) / monthly_prices.shift() - 1
+    total_returns = (monthly_prices + coupons) / monthly_prices.shift() - 1
 
     # Drop the initial row since it has no previous price for return calculation
     return total_returns.dropna()
@@ -1658,20 +1969,44 @@ price_10[[1,2,3]].tail()
  variation.
 """
 
-price_30=None
-price_30[[1,2,3]].tail()
+# Calcular precios del bono a 30 años utilizando las tasas generadas previamente
+price_30 = bond_price(30, 1000, 0.05, 12, rates)
+
+# Mostrar las últimas filas de los precios para las columnas [1, 2, 3]
+price_30[[1, 2, 3]].tail()
 
 """So, bonds tend to be tought as safe,but they are not, this is clear when the maturity is long.
  Let's make a portfolio with the two bonds. Use a 60/40 combination using the 10 and 30 year bonds
 """
 
-rets_30=bond_total_return(price_30,100,0.05,12)
-rets_10=bond_total_return(price_10,100,0.05,12)
-rets_bonds=None
-#The assumption is we are rebalancing 60/40 at the end of each month. This is
-#because if we don't rebalance, because of the changes of prices, at the end
-#of a month we are not 60/40 of the initial value. So, you should recompute the
-#weights.
+# Calcular los retornos totales de los bonos a 30 años y 10 años
+rets_30 = bond_total_return(price_30, 1000, 0.05, 12)
+rets_10 = bond_total_return(price_10, 1000, 0.05, 12)
+
+# Inicializar los retornos del portafolio
+weights = [0.6, 0.4]  # 60% en el bono a 30 años, 40% en el bono a 10 años
+rets_bonds = pd.DataFrame(index=rets_30.index, columns=rets_30.columns)
+
+# Rebalanceo mensual para mantener la proporción inicial
+for t in range(len(rets_30)):
+    if t == 0:
+        # Primer mes, aplicar pesos iniciales
+        rets_bonds.iloc[t] = weights[0] * rets_30.iloc[t] + weights[1] * rets_10.iloc[t]
+    else:
+        # Rebalancear al final de cada mes
+        portfolio_value_30 = (rets_bonds.iloc[:t, 0] + 1).prod() * weights[0]
+        portfolio_value_10 = (rets_bonds.iloc[:t, 1] + 1).prod() * weights[1]
+        total_value = portfolio_value_30 + portfolio_value_10
+        weights_rebalanced = [portfolio_value_30 / total_value, portfolio_value_10 / total_value]
+
+        # Calcular retornos ponderados
+        rets_bonds.iloc[t] = (
+            weights_rebalanced[0] * rets_30.iloc[t]
+            + weights_rebalanced[1] * rets_10.iloc[t]
+        )
+
+# Mostrar resultados iniciales
+print(rets_bonds.head())
 
 mean_rets_bonds=rets_bonds.mean(axis='columns') #series for each column
 summary_stats(pd.DataFrame(mean_rets_bonds))
